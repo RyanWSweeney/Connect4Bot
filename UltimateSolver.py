@@ -49,7 +49,7 @@ class Position:
         self.current_position ^= self.mask
         self.mask |= self.mask + self.bottom_mask(col)
         self.moves += 1
-        self.move_sequence.append(col + 1)  # Store the column as 1-based index for more intuitive debugging
+        self.move_sequence.append(col + 1)  # 1-based index
 
     def is_winning_move(self, col):
         pos = self.current_position | ((self.mask + self.bottom_mask(col)) & self.column_mask(col))
@@ -178,37 +178,49 @@ def create_random_position(position, move_count):
             break
 
 
-def evaluate_heuristic(position):
-    pass
-
-
 def negamax(position, alpha, beta, trans_table):
+    # Check transposition table first
+    tt_entry = trans_table.get(position.key())
+    if tt_entry:
+        # Assuming tt_entry is a score already adjusted for minimax value
+        return tt_entry
+
+    # Terminal node check (draw or win)
     if position.is_terminal():
         return position.evaluate()
 
-    trans_entry = trans_table.get(position.key())
-    if trans_entry:
-        stored_score, score_type = trans_entry
-        if score_type == 'exact':
-            return stored_score
-
-    max_score = -float('inf')
-    for col in range(Position.WIDTH):
+    max_value = -float('inf')
+    for col in range(position.WIDTH):
         if position.can_play(col):
+            # Create new position by playing the move
             new_position = position.clone()
             new_position.play(col)
-            score = -negamax(new_position, -beta, -alpha, trans_table)
-            max_score = max(max_score, score)
-            alpha = max(alpha, score)
+
+            # Immediate win check
+            if new_position.is_winning_move(col):
+                score = (Position.WIDTH * Position.HEIGHT + 1 - new_position.nb_moves()) // 2
+                trans_table.put(new_position.key(), score)
+                return score
+
+            # Recursive negamax call
+            value = -negamax(new_position, -beta, -alpha, trans_table)
+            max_value = max(max_value, value)
+            alpha = max(alpha, value)
             if alpha >= beta:
                 break
 
-    # Store the result in the transposition table before returning
-    trans_table.put(position.key(), (max_score, 'exact'))
+    # Store the computed value in the transposition table before returning
+    trans_table.put(position.key(), max_value)
+    return max_value
 
-    return max_score
 
-
+def iterative_deepening(position, max_depth):
+    trans_table = TranspositionTable()
+    best_score = None
+    for depth in range(1, max_depth + 1):
+        best_score = negamax(position, -float('inf'), float('inf'), trans_table)
+        print(f"Depth {depth}: Best score {best_score}")
+    return best_score
 
 
 if __name__ == "__main__":
